@@ -1,2 +1,14 @@
+# Ignorar archivos de configuración
 *.ini
-*.ini
+
+# Ignorar la base de datos
+*.db
+*.sqlite
+*.sqlite3
+
+# Ignorar imágenes dentro de la carpeta data y sus subcarpetas
+data/thumbnails/*.jpg
+data/thumbnails/comics/*.png
+data/thumbnails/Comics/*.gif
+data/thumbnails/editoriales/*.jpeg
+data/thumbnails/volumenes/*.bmp
