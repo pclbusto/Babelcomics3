@@ -1,0 +1,1 @@
+Descripción técnica de los componentes del sistema Babelcomics.

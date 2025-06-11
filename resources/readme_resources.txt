@@ -1,0 +1,1 @@
+Esta carpeta contiene archivos adicionales y recursos externos utilizados por Babelcomics.

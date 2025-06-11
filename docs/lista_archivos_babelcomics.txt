@@ -1,0 +1,28 @@
+babelcomics/
+├── main.py
+├── config/
+├── data/
+│   └── thumbnails/
+├── docs/
+│   ├── estructura_babelcomics.md
+│   ├── babelcomics_info_general.txt
+│   ├── babelcomics_resumen.txt
+│   └── babelcomics_descripcion_tecnica.txt
+├── entidades/
+│   ├── __init__.py
+│   ├── setup_model_snake_case.py
+│   ├── publisher_model.py
+│   └── volume_model.py
+├── glade/
+│   ├── setup_visual_config.ui
+│   ├── publisher_list.ui
+│   ├── volume_list.ui
+│   └── publisher_editor.ui
+├── helpers/
+├── images/
+├── interfaces/
+│   ├── __init__.py
+│   ├── setup_visual_config.py
+│   ├── publisher_list.py
+│   └── volume_list.py
+└── resources/

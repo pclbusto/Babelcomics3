@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Babelcomics
+Comment=Gestor y lector de cómics digitales
+Exec=/home/pedro/PycharmProjects/Babelcomics3/.venv/bin/python /ruta/completa/a/babelcomics/main.py
+Icon=/home/pedro/PycharmProjects/Babelcomics3/imagesBabelcomic3.png
+Terminal=false
+Type=Application
+Categories=Graphics;Viewer;
+StartupNotify=true
