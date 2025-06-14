@@ -11,4 +11,7 @@ data/thumbnails/*.jpg
 data/thumbnails/comics/*.png
 data/thumbnails/Comics/*.gif
 data/thumbnails/editoriales/*.jpeg
+data/thumbnails/editoriales/*.jpg
+data/thumbnails/editoriales/*.gif
 data/thumbnails/volumenes/*.bmp
+data/thumbnails/volumenes/*.jpg
