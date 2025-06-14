@@ -51,9 +51,9 @@ class SetupVisualWindow:
         ancho_box.pack_start(self.spin_ancho_thumbnail, True, True, 0)
         main_box.pack_start(ancho_box, False, False, 0)
 
-        # Cómiques por página
+        # Cómics por página
         pagina_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        label_pagina = Gtk.Label(label="Cómiques por página:")
+        label_pagina = Gtk.Label(label="Cómics por página:")
         self.spin_comics_por_pagina = Gtk.SpinButton()
         adjustment2 = Gtk.Adjustment(lower=1, upper=100, step_increment=1, page_increment=5, value=18)
         self.spin_comics_por_pagina.set_adjustment(adjustment2)
