@@ -9,32 +9,9 @@ from repositories.volume_repository import VolumeRepository
 
 class VolumeWindow(Gtk.Window):
     def __init__(self, session):
-        super().__init__(title="Volúmenes")
-        self.session = session
         self.repo = VolumeRepository(session)
-
-        self.init_config()
-        self.init_variables()
-        self.init_widgets()
-        self.init_layout()
-        self.init_events()
-
-        self.show_all()
+        super().__init__(title="Volúmenes Management")
         self.actualizar_vista()
-
-    def init_config(self):
-        self.config_path = os.path.expanduser("~/.babelcomics_volumewindow.ini")
-        self.config = configparser.ConfigParser()
-        self.config.read(self.config_path)
-
-        w = int(self.config.get("Ventana", "ancho", fallback="800"))
-        h = int(self.config.get("Ventana", "alto", fallback="600"))
-        self.set_default_size(w, h)
-
-        if self.config.has_option("Ventana", "pos_x") and self.config.has_option("Ventana", "pos_y"):
-            x = int(self.config.get("Ventana", "pos_x"))
-            y = int(self.config.get("Ventana", "pos_y"))
-            self.move(x, y)
 
     def init_variables(self):
         self.volumenes_por_pagina = 20

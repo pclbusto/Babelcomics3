@@ -1,5 +1,9 @@
 import requests
 from bs4 import BeautifulSoup
+from scrapy.crawler import CrawlerProcess
+from scrapy import Spider
+from scrapy.settings import Settings
+
 
 class ComicVineConnector:
     def __init__(self, api_key, base_url="https://comicvine.gamespot.com/api/"):
@@ -8,7 +12,7 @@ class ComicVineConnector:
         :param api_key: Your ComicVine API key.
         :param base_url: Base URL for the ComicVine API.
         """
-        self.api_key = "7e4368b71c5a66d710a62e996a660024f6a868d4 "
+        self.api_key = api_key
         self.base_url = base_url
 
     def fetch_from_api(self, endpoint, params=None):
@@ -23,66 +27,125 @@ class ComicVineConnector:
         params['api_key'] = self.api_key
         params['format'] = 'json'
         url = f"{self.base_url}{endpoint}"
-        response = requests.get(url, params=params)
+        headers = {
+            "User-Agent": "Babelcomics3/1.0 (https://github.com/pclbusto/Babelcomics3)"
+        }
+        response = requests.get(url, params=params, headers=headers)
         response.raise_for_status()
         return response.json()
 
-    def scrape_website(self, url):
+    def search_volumes(self, query, limit=None):
         """
-        Perform web scraping on the ComicVine website.
-        :param url: URL to scrape.
-        :return: Parsed HTML content.
+        Search for volumes using the API.
+        :param query: Search query for volumes.
+        :param limit: Number of results to return. If None, fetch the maximum allowed by the API.
+        :return: List of volumes.
         """
-        response = requests.get(url)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, 'html.parser')
-        return soup
-
-    def get_comic_details(self, comic_id):
-        """
-        Get comic details using the API.
-        :param comic_id: ID of the comic to fetch details for.
-        :return: Comic details as a dictionary.
-        """
-        endpoint = f"issue/{comic_id}/"
-        return self.fetch_from_api(endpoint)
-
-    def scrape_comic_page(self, url):
-        """
-        Scrape comic details from a specific page.
-        :param url: URL of the comic page to scrape.
-        :return: Extracted comic details.
-        """
-        soup = self.scrape_website(url)
-        # Example: Extract title and description (adjust selectors as needed)
-        title = soup.find('h1', class_='title').text.strip() if soup.find('h1', class_='title') else None
-        description = soup.find('div', class_='description').text.strip() if soup.find('div', class_='description') else None
-        return {
-            'title': title,
-            'description': description
+        endpoint = "search/"
+        params = {
+            "query": query,
+            "resources": "volume",
+            "limit": limit if limit is not None else 100  # Usa 100 como límite máximo permitido por la API
         }
-    
+        return self.fetch_from_api(endpoint, params)
+
+    def search_publishers(self, query, limit=10):
+        """
+        Search for publishers using the API.
+        :param query: Search query for publishers.
+        :param limit: Number of results to return.
+        :return: List of publishers.
+        """
+        endpoint = "search/"
+        params = {
+            "query": query,
+            "resources": "publisher",
+            "limit": limit
+        }
+        return self.fetch_from_api(endpoint, params)
+
+    def get_comic_details(self, series_id):
+        """
+        Fetch details of a specific comic series using the API.
+        :param series_id: ID of the comic series to fetch details for.
+        :return: Dictionary with series details.
+        """
+        endpoint = f"volume/{series_id}/"
+        params = {}
+        response = self.fetch_from_api(endpoint, params)
+        return response.get("results", {})
+
+    def get_issue_details(self, issue_id):
+        """
+        Fetch details of a specific comic issue using the API.
+        :param issue_id: ID of the comic issue to fetch details for.
+        :return: Dictionary with issue details.
+        """
+        endpoint = f"issue/{issue_id}/"
+        params = {}
+        response = self.fetch_from_api(endpoint, params)
+        return response.get("results", {})
+
+    def scrape_issue_details(self, url):
+        """
+        Scrape issue details from a specific page using Scrapy.
+        :param url: URL of the issue page to scrape.
+        :return: Extracted issue details.
+        """
+        process = CrawlerProcess(settings={
+            "USER_AGENT": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "AUTOTHROTTLE_ENABLED": True,
+            "AUTOTHROTTLE_START_DELAY": 1,
+            "AUTOTHROTTLE_MAX_DELAY": 10,
+            "AUTOTHROTTLE_TARGET_CONCURRENCY": 1.0,
+            "LOG_LEVEL": "ERROR",
+            "DOWNLOAD_DELAY": 2.0  # Agregar un retraso entre solicitudes
+        })
+
+        class IssueSpider(Spider):
+            name = "issue_spider"
+            start_urls = [url]
+
+            def parse(self, response):
+                # Imprimir el contenido HTML de la página para verificar que se descargó correctamente
+                print("Contenido HTML descargado:")
+                print(response.text[:1000])  # Muestra los primeros 1000 caracteres del HTML
+
+                # Ajusta los selectores CSS según la estructura actual del sitio
+                title = response.css("h1.title::text").get()
+                description = response.css("div.description::text").get()
+                yield {
+                    "title": title.strip() if title else None,
+                    "description": description.strip() if description else None
+                }
+
+        results = []
+
+        def collect_results(item, response, spider):
+            results.append(item)
+
+        # Conectar la señal para recolectar resultados
+        from scrapy import signals
+        from pydispatch import dispatcher
+        dispatcher.connect(collect_results, signal=signals.item_scraped)
+
+        process.crawl(IssueSpider)
+        process.start()
+        return results[0] if results else {}
+
 
 def main():
-    # Configuración inicial
-    api_key = "7e4368b71c5a66d710a62e996a660024f6a868d4"  # Reemplaza con tu API key válida
-    connector = ComicVineConnector(api_key)
+    connector = ComicVineConnector(api_key="tu_api_key")
 
-    # ID de la serie a consultar (reemplaza con un ID válido)
-    series_id = "4000-1234"  # Ejemplo de ID de una serie en ComicVine
-
+    # Usar web scraping
     try:
-        # Consulta a la API para obtener detalles de la serie
-        print(f"Consultando detalles de la serie con ID: {series_id}")
-        series_details = connector.get_comic_details(series_id)
-
-        # Mostrar los detalles obtenidos
-        print("Detalles de la serie:")
-        for key, value in series_details.items():
-            print(f"{key}: {value}")
-
+        url = "https://comicvine.gamespot.com/green-lantern-1-the-planet-of-doomed-men-menace-of/4000-4869/"
+        issue_details_scraping = connector.scrape_issue_details(url)
+        print("Detalles obtenidos desde web scraping:")
+        print(issue_details_scraping)
     except Exception as e:
-        print(f"Error al consultar la serie: {e}")
+        print(f"Error al realizar web scraping: {e}")
+
 
 if __name__ == "__main__":
     main()
