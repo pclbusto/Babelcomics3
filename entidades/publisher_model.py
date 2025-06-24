@@ -1,10 +1,10 @@
 from entidades import Base
-from sqlalchemy import Column, String
+from sqlalchemy import Column, String, Integer
 import os
 
 class Publisher(Base):
     __tablename__ = 'publishers'
-    id_publisher = Column(String, primary_key=True)
+    id_publisher = Column(Integer, primary_key=True)
     nombre = Column(String, nullable=False, default='')
     deck = Column(String, default='')  # Nuevo campo agregado
     descripcion = Column(String, default='')

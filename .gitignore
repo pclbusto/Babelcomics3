@@ -9,7 +9,7 @@
 # Ignorar imágenes dentro de la carpeta data y sus subcarpetas
 data/thumbnails/*.jpg
 data/thumbnails/comics/*.png
-data/thumbnails/Comics/*.gif
+data/thumbnails/comics/*.jpg
 data/thumbnails/editoriales/*.jpeg
 data/thumbnails/editoriales/*.jpg
 data/thumbnails/editoriales/*.gif

@@ -108,12 +108,13 @@ class ComicVineConnector:
 
             def parse(self, response):
                 # Imprimir el contenido HTML de la página para verificar que se descargó correctamente
-                print("Contenido HTML descargado:")
-                print(response.text[:1000])  # Muestra los primeros 1000 caracteres del HTML
+                # print("Contenido HTML descargado:")
+                # print(response.text[:1000])  # Muestra los primeros 1000 caracteres del HTML
 
                 # Ajusta los selectores CSS según la estructura actual del sitio
-                title = response.css("h1.title::text").get()
-                description = response.css("div.description::text").get()
+                title = response.css("p.wiki-descriptor a.wiki-title::text").get()
+                parrafos = response.css("div.wiki-item-display.js-toc-content p::text").getall()
+                description= " ".join(p.strip() for p in parrafos)
                 yield {
                     "title": title.strip() if title else None,
                     "description": description.strip() if description else None
