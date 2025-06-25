@@ -4,19 +4,30 @@ import gi
 import threading
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk, GdkPixbuf, GLib
+from gi.repository import Gtk, GdkPixbuf, GLib, Gdk
 
 
 class Maestro(Gtk.Window):
-    def __init__(self, titulo="Maestro", thumbnail_manager=None):
+    def __init__(self, titulo="Maestro", thumbnail_manager=None, setup_config=None):
         super().__init__(title=titulo)
         self.set_resizable(True)  # Asegúrate de que la ventana sea redimensionable
         self.set_default_size(800, 600)  # Tamaño inicial de la ventana
         self.thumbnail_manager = thumbnail_manager
+        self.setup_config = setup_config
         # Configuración para guardar tamaño y posición
         self.ruta_config = os.path.expanduser("~/.babelcomics.ini")
         self.config = configparser.ConfigParser()
         self.config.read(self.ruta_config)
+
+        # Precargamos el ícono para no tener que leerlo del disco en cada iteración.
+        # Si no lo encuentra, no dará error, simplemente no se mostrará.
+        try:
+            self.classified_icon_pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
+                "images/clasificado.png", 32, 32, True
+            )
+        except Exception as e:
+            print(f"Advertencia: No se pudo cargar el ícono 'clasificado.png'. {e}")
+            self.classified_icon_pixbuf = None
 
         self.restaurar_configuracion_ventana()  # Restaurar tamaño y posición
 
@@ -31,59 +42,70 @@ class Maestro(Gtk.Window):
 
     def construir_grilla(self, items, get_image_path, get_label_text):
         """
-        Construye la grilla, cargando las imágenes de forma diferida (lazy loading)
-        en hilos separados para no bloquear la UI.
+        Construye la grilla, superponiendo el ícono de estado directamente sobre la imagen.
         """
-        # Limpiamos los hijos existentes
         for child in self.flowbox.get_children():
             self.flowbox.remove(child)
 
         for obj in items:
-            # --- Lógica de Lazy Loading ---
-            
-            # 1. Creamos un Gtk.Stack para poder cambiar entre el spinner y la imagen
+            # --- Lógica de Lazy Loading (Sin cambios) ---
             stack_imagen = Gtk.Stack()
             stack_imagen.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
-
-            # 2. Creamos el spinner de carga y lo iniciamos
             spinner = Gtk.Spinner()
             spinner.start()
             stack_imagen.add_named(spinner, "spinner")
-
-            # 3. Creamos el widget de imagen, pero aún vacío
             imagen_widget = Gtk.Image()
             stack_imagen.add_named(imagen_widget, "imagen")
 
-            # 4. Lanzamos un hilo para cargar la imagen en segundo plano
-            # Lanzamos el hilo, ahora pasamos el objeto 'obj' completo
             thread = threading.Thread(
                 target=self._cargar_thumbnail_en_hilo,
-                args=(get_image_path(obj), imagen_widget, spinner, stack_imagen, obj) # <--- 'obj' añadido
+                args=(get_image_path(obj), imagen_widget, spinner, stack_imagen, obj)
             )
-            thread.daemon = True # El hilo se cerrará si la app principal se cierra
+            thread.daemon = True
             thread.start()
-            
-            # --- Construcción del resto del widget (como antes) ---
-            frame = Gtk.Frame()
-            frame.set_size_request(160, 220)
-            frame.item_data = obj
 
-            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-            box.set_margin_top(5)
-            box.set_margin_bottom(5)
-            box.set_margin_start(5)
-            box.set_margin_end(5)
-            
-            # Añadimos el stack (que contiene el spinner) en lugar de la imagen directamente
-            box.pack_start(stack_imagen, False, False, 0)
+            # --- LÓGICA DEL INDICADOR VISUAL CORREGIDA ---
 
+            # 1. El Overlay ahora envuelve SOLAMENTE al Stack de la imagen.
+            overlay_imagen = Gtk.Overlay()
+            overlay_imagen.add(stack_imagen)
+            overlay_imagen.set_halign(Gtk.Align.CENTER)
+            # 2. Comprobamos si el objeto está clasificado para añadir el ícono.
+            if hasattr(obj, 'is_classified') and obj.is_classified and self.classified_icon_pixbuf:
+                icon = Gtk.Image.new_from_pixbuf(self.classified_icon_pixbuf)
+                icon.set_halign(Gtk.Align.START)  # <--- 1. De END a START para alinear a la izquierda
+                icon.set_valign(Gtk.Align.START)  # <--- Esto se mantiene igual (arriba)
+                icon.set_margin_top(3)            # <--- 2. Reducimos el margen superior
+                icon.set_margin_start(3)          # <--- 2. Cambiamos margin_end por margin_start y reducimos
+             
+                # Añadimos el ícono como una capa superpuesta al Overlay.
+                overlay_imagen.add_overlay(icon)
+
+            # --- Ensamblado Final ---
+
+            # 3. Creamos un Box vertical para apilar la imagen (con overlay) y la etiqueta.
+            
+            vbox_celda = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+            
+            # Añadimos el overlay que contiene la imagen
+            vbox_celda.pack_start(overlay_imagen, False, False, 0)
+            
+            
+            # Añadimos la etiqueta debajo
             etiqueta = Gtk.Label(label=get_label_text(obj))
             etiqueta.set_line_wrap(True)
             etiqueta.set_max_width_chars(20)
             etiqueta.set_justify(Gtk.Justification.CENTER)
-            box.pack_start(etiqueta, False, False, 0)
+            vbox_celda.pack_start(etiqueta, False, False, 0)
 
-            frame.add(box)
+            # 4. El Frame principal contiene el Box vertical que ya tiene todo ordenado.
+            frame = Gtk.Frame()
+            frame.item_data = obj
+            frame.add(vbox_celda)
+            
+            # NOTA: He quitado la línea 'frame.set_size_request(...)' para que GTK
+            # calcule el tamaño automáticamente y evite el crecimiento indeseado.
+            
             self.flowbox.add(frame)
 
         self.flowbox.show_all()
@@ -105,6 +127,7 @@ class Maestro(Gtk.Window):
         self.columnas_lista = []
         self.callback_accion = None
         self.callback_child_activated = None # Callback para el FlowBox
+        self.last_selected_child_index = -1
 
     def inicializar_widgets(self):
         """Inicializa los widgets principales."""
@@ -226,8 +249,69 @@ class Maestro(Gtk.Window):
 
     def inicializar_eventos(self):
         """Conecta los eventos de la ventana."""
-        pass
+        # --- AÑADE ESTAS DOS LÍNEAS ---
+        self.connect("key-press-event", self.on_maestro_key_press)
+        self.flowbox.connect("button-press-event", self.on_maestro_flowbox_button_press)
 
+    def on_maestro_key_press(self, widget, event):
+        """
+        Manejador de teclado genérico para todas las ventanas Maestro.
+        Maneja la tecla Escape para limpiar la selección.
+        """
+        if event.keyval == Gdk.KEY_Escape:
+            # Usamos 'vista_predeterminada' que ya existe en tu código
+            if self.vista_predeterminada == 'grilla':
+                self.flowbox.unselect_all()
+                self.last_selected_child_index = -1
+                return True # Evento manejado
+            elif self.vista_predeterminada == 'lista':
+                selection = self.treeview.get_selection()
+                selection.unselect_all()
+                return True # Evento manejado
+        
+        return False # Dejar que el evento se propague si no es Escape
+
+    def on_maestro_flowbox_button_press(self, flowbox, event):
+        """
+        Manejador de clics genérico para el FlowBox que implementa
+        la selección con clic simple y Shift+clic.
+        """
+        # Solo nos interesa el clic izquierdo
+        if event.button != Gdk.BUTTON_PRIMARY:
+            return Gdk.EVENT_PROPAGATE
+
+        child = flowbox.get_child_at_pos(event.x, event.y)
+        if not child:
+            return Gdk.EVENT_PROPAGATE # Clic en espacio vacío
+        
+        current_index = child.get_index()
+        modifiers = Gtk.accelerator_get_default_mod_mask()
+        is_shift_pressed = (event.state & modifiers) == Gdk.ModifierType.SHIFT_MASK
+        is_ctrl_pressed = (event.state & modifiers) == Gdk.ModifierType.CONTROL_MASK
+
+        # Si se presiona Ctrl, dejamos que GTK haga su magia
+        if is_ctrl_pressed:
+            self.last_selected_child_index = current_index
+            return Gdk.EVENT_PROPAGATE
+
+        # Si se presiona Shift y hay un ancla de selección
+        if is_shift_pressed and self.last_selected_child_index != -1:
+            start = min(self.last_selected_child_index, current_index)
+            end = max(self.last_selected_child_index, current_index)
+            
+            flowbox.unselect_all()
+            all_children = flowbox.get_children()
+            for i in range(start, end + 1):
+                flowbox.select_child(all_children[i])
+            
+            return Gdk.EVENT_STOP # Detenemos la propagación, ya lo manejamos
+
+        # Si es un clic simple (sin Shift ni Ctrl)
+        flowbox.unselect_all()
+        flowbox.select_child(child)
+        self.last_selected_child_index = current_index
+        return Gdk.EVENT_STOP # Detenemos la propagación
+    
     def set_items(self, lista_de_items):
         """Carga o recarga los datos en ambas vistas."""
         self.items = lista_de_items
@@ -468,12 +552,18 @@ class Maestro(Gtk.Window):
         Esta función se ejecuta en un hilo separado.
         Ahora también gestiona la cola de carátulas faltantes.
         """
+
+        # Obtenemos el tamaño directamente del objeto de configuración
+        # Si no hay configuración, usamos un valor seguro por defecto (ej: 120)
+        size = self.setup_config.ancho_thumbnail if self.setup_config else 120
+
+
         pixbuf_cargado = None
         if os.path.exists(ruta_imagen):
             # Si el thumbnail ya existe, lo cargamos
             try:
                 pixbuf_cargado = GdkPixbuf.Pixbuf.new_from_file_at_scale(
-                    ruta_imagen, 128, 128, True
+                    ruta_imagen, size, size, True
                 )
             except Exception as e:
                 print(f"ERROR al cargar thumbnail existente: {ruta_imagen} - {e}")
@@ -490,7 +580,7 @@ class Maestro(Gtk.Window):
         if not pixbuf_cargado:
             try:
                 pixbuf_cargado = GdkPixbuf.Pixbuf.new_from_file_at_scale(
-                    "images/Comic_sin_caratula.png", 128, 128, True
+                    "images/Comic_sin_caratula.png", size, size, True
                 )
             except:
                 pass # Si todo falla, el pixbuf será None

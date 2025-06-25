@@ -42,6 +42,16 @@ class Comicbook(Base):
         # 5. Si no, devuelve la imagen predeterminada para cómics
         return "images/Comic_sin_caratula289328139.png"
 
+     # --- AÑADE ESTA PROPIEDAD ACTUALIZADA ---
+    @property
+    def is_classified(self):
+        """
+        Devuelve True si el cómic tiene información asociada (está clasificado).
+        """
+        # La condición ahora comprueba si 'id_comicbook_info' no es una cadena vacía.
+        return bool(self.id_comicbook_info and self.id_comicbook_info.strip())
+
+
     def __repr__(self):
         return (f"<Comicbook(id={self.id_comicbook}, "
                 f"path='{self.path}', "

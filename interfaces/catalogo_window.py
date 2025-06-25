@@ -20,8 +20,15 @@ session = Session()
 
 class CatalogoWindow(Maestro):
     def __init__(self, application=None, thumbnail_manager=None):
+        # Obtenemos la configuración una sola vez
+        setup_repo = SetupRepository(session)
+        setup_config = setup_repo.obtener_o_crear_configuracion()
         # El título de la ventana se pasa al constructor de Maestro
-        super().__init__(titulo="Catálogo de Cómics", thumbnail_manager=thumbnail_manager)
+        super().__init__(
+            titulo="Catálogo de Cómics", 
+            thumbnail_manager=thumbnail_manager,
+            setup_config=setup_config # <--- ¡Mucho más limpio!
+        )
         self.set_name("BabelComics") # Para la integración con el ícono del .desktop
         self.application = application
 
@@ -224,23 +231,31 @@ class CatalogoWindow(Maestro):
     def _ejecutar_refresco(self):
         """
         Contiene la lógica central para recargar la configuración y la vista.
-        Este método no depende de ningún widget y puede ser llamado desde cualquier lugar.
+        Solo resetea a la primera página si la paginación ha cambiado.
         """
         print("INFO: Ejecutando lógica de refresco...")
         
-        # 1. Volvemos a consultar la base de datos para obtener la configuración
+        # 1. Guardamos el valor actual antes de recargar
+        paginacion_actual = self.items_por_pagina
+        
+        # 2. Volvemos a consultar la base de datos para obtener la configuración
         from repositories.setup_repository import SetupRepository
         setup_repo = SetupRepository(session)
         setup_config = setup_repo.obtener_o_crear_configuracion()
         
-        # 2. Actualizamos el valor de la paginación en nuestra ventana
+        # 3. Actualizamos el valor de la paginación en nuestra ventana
         self.items_por_pagina = setup_config.cantidad_comics_por_pagina
-        print(f"INFO: Items por página actualizado a {self.items_por_pagina}")
         
-        # 3. Reseteamos a la primera página para evitar errores
-        self.pagina_actual = 0
-        
-        # 4. Llamamos al método que ya se encarga de dibujar la vista
+        # 4. Comparamos el valor antiguo con el nuevo
+        if paginacion_actual != self.items_por_pagina:
+            # Si la cantidad de ítems por página cambió, es seguro volver al inicio
+            print(f"INFO: La paginación cambió de {paginacion_actual} a {self.items_por_pagina}. Volviendo a la página 1.")
+            self.pagina_actual = 0
+        else:
+            # Si no cambió, nos mantenemos en la página actual
+            print(f"INFO: La paginación no cambió ({self.items_por_pagina}). Se mantiene la página actual.")
+            
+        # 5. Llamamos al método que ya se encarga de dibujar la vista
         self.actualizar_vista()
 
     def refrescar_vista(self, widget, popover):
@@ -253,19 +268,17 @@ class CatalogoWindow(Maestro):
 
     def on_key_press(self, widget, event):
         """
-        Manejador para el evento 'key-press-event' de la ventana.
+        Manejador de teclado específico para CatalogoWindow.
         """
-        # Comprobamos si la tecla presionada es F5
+        # 1. Primero, maneja las teclas que solo le importan a esta ventana (F5).
         if event.keyval == Gdk.KEY_F5:
             print("INFO: F5 presionado.")
-            # Si es F5, llamamos a nuestra lógica de refresco
             self._ejecutar_refresco()
-            # Devolvemos True para indicar que hemos manejado el evento
-            # y que no se debe propagar más.
-            return True
-        
-        # Si no es F5, devolvemos False para que otros manejadores puedan usar el evento.
-        return False
+            return True # Evento manejado, no necesita seguir.
+
+        # 2. Si no fue F5, llama al manejador de la clase padre (Maestro).
+        #    Esto es CRUCIAL para que la tecla 'Escape' siga funcionando.
+        return super().on_maestro_key_press(widget, event)
 
     def on_comic_activated(self, comic):
         """

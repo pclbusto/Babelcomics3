@@ -111,7 +111,7 @@ class ThumbnailManager:
                 from io import BytesIO
                 img = Image.open(BytesIO(first_image_data))
                 if img.mode in ('RGBA', 'P'): img = img.convert('RGB')
-                img.thumbnail((128, 128))
+                img.thumbnail((256, 256))
 
                 output_path = os.path.join(self.THUMBNAIL_DIR, f"{comic_id}.jpg") # <-- Cambiar a .jpg
 
